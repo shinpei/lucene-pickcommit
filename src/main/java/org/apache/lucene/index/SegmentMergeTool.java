@@ -1,6 +1,5 @@
 package org.apache.lucene.index;
 
-import com.google.common.base.Splitter;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.*;
@@ -14,82 +13,42 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.*;
 
+/**
+ * Since merger.merge is not public, we need to build
+ * this tool under this namespace
+ */
 public class SegmentMergeTool {
 
     private final static Logger logger = LoggerFactory.getLogger(SegmentMergeTool.class.getName());
 
-    static class Config {
-        String segmentPath;
-        List<Integer> deleteSegs;
-        String searchTerm;
-        List<Integer> mergeSegs;
+    public static class Config {
+        public String segmentPath;
+        public List<Integer> deleteSegs;
+        public String searchTerm;
+        public List<Integer> mergeSegs;
+        public boolean showSegmentCommitInfo;
+        public boolean showSegmentInfo;
     }
 
-    static final Splitter COMMA_SPLITTER = Splitter.on(",");
+    // TODO : We should skip last argument. its a path
+    private final Directory dir;
+    private final DirectoryReader dreader;
+    private final SegmentInfos sis;
 
-    public static void main (String[] args) throws IOException {
 
-        // TODO : We should skip last argument. its a path
-        List<String> argL = Arrays.asList(args);
-        if (argL.size() % 2 != 1) {
-            logger.error("Each argument needs one value at least");
-            return;
-        }
-        String segmentPath = "./";
-
-        Config cfg = new Config();
-
-        boolean parseOne;
-        for (int i = 0; i < argL.size(); i+= parseOne ? 1: 2) {
-            parseOne = false;
-            switch (argL.get(i)) {
-                case "--delete":
-                    for (String s : COMMA_SPLITTER.split((argL.get(i+1)))) {
-                        if (cfg.deleteSegs == null) {
-                            cfg.deleteSegs = new ArrayList<>();
-                        }
-                        cfg.deleteSegs.add(Integer.parseInt(s));
-                    }
-                    logger.info("Delete enabled for : {}", Arrays.toString(cfg.deleteSegs.toArray()));
-                case "--search":
-                    cfg.searchTerm = argL.get(i+1);
-                    break;
-                case "--merge":
-                    for (String s : COMMA_SPLITTER.split((argL.get(i+1)))) {
-                        if (cfg.mergeSegs == null) {
-                            cfg.mergeSegs = new ArrayList<>();
-                        }
-                        cfg.mergeSegs.add(Integer.parseInt(s));
-                    }
-                    logger.info("Merge enabled for : {}", Arrays.toString(cfg.mergeSegs.toArray()));
-
-                    break;
-                default:
-                    // plus one is always a path
-                    segmentPath =  argL.get(i);
-                    parseOne = true;
-            }
-        }
-        logger.info("Set path to = {}", segmentPath);
-        Directory dir = FSDirectory.open(Paths.get(segmentPath));
-
-        DirectoryReader dreader = DirectoryReader.open(dir);
-
-        IndexCommit ic = dreader.getIndexCommit();
-        logger.info("segment count = {}", ic.getSegmentCount());
-        logger.info("files= {}", ic.getFileNames());
-        logger.info("generation = {}", ic.getGeneration());
-        logger.info("segment file name = {}", ic.getSegmentsFileName());
-        logger.info("isDeleted?? : {}", ic.isDeleted());
-        for (Map.Entry<String, String> entry: ic.getUserData().entrySet()) {
-            logger.info("{} {}", entry.getKey(), entry.getValue());
-        }
-
-        // segment info
+    public SegmentMergeTool (Config cfg) throws IOException {
+        // prepare required fileds
+        dir = FSDirectory.open(Paths.get(cfg.segmentPath));
+        dreader = DirectoryReader.open(dir);
         String files[]  = dir.listAll();
         String lastSegmentFile = SegmentInfos.getLastCommitSegmentsFileName(files);
-        logger.info("LastSegment File={}", lastSegmentFile);
-        SegmentInfos sis = SegmentInfos.readCommit(dir, lastSegmentFile);
+        sis = SegmentInfos.readCommit(dir, lastSegmentFile);
+    }
+
+
+    public void showSegmentCommitInfo() throws IOException {
+        // segment info
+
         int numSegments = sis.asList().size();
         logger.info("num of segments = {}", numSegments);
         for (int i = 0; i < numSegments; i++) {
@@ -123,9 +82,31 @@ public class SegmentMergeTool {
             } catch (Throwable t) {
 
             }
+        }
+    }
 
+    private void showSegmentInfo() throws IOException {
+
+        IndexCommit ic = dreader.getIndexCommit();
+        logger.info("segment count = {}", ic.getSegmentCount());
+        logger.info("files= {}", ic.getFileNames());
+        logger.info("generation = {}", ic.getGeneration());
+        logger.info("segment file name = {}", ic.getSegmentsFileName());
+        logger.info("isDeleted?? : {}", ic.isDeleted());
+        for (Map.Entry<String, String> entry: ic.getUserData().entrySet()) {
+            logger.info("{} {}", entry.getKey(), entry.getValue());
+        }
+    }
+
+    public void exec(Config cfg) throws IOException {
+
+        if (cfg.showSegmentInfo) {
+            showSegmentInfo();
         }
 
+        if (cfg.showSegmentCommitInfo) {
+            showSegmentCommitInfo();
+        }
 
         if (cfg.deleteSegs != null) {
             logger.info("Invoking deletes, specified {}", Arrays.toString(cfg.deleteSegs.toArray()));
@@ -140,24 +121,18 @@ public class SegmentMergeTool {
         }
 
 
-
         if (cfg.mergeSegs != null) {
             logger.info("Going for merge");
-
-            // merge
-            SegmentCommitInfo si1 = sis.info(1);
-            SegmentCommitInfo si2 = sis.info(2);
-            //SegmentCommitInfo si3 = sis.info(3);
-            //SegmentCommitInfo si4 = sis.info(4);
-            IOContext context = new IOContext(
+            List<CodecReader>  segmentsToMerge = Arrays.asList(); // SegmentReader <: CodecReader
+            IOContext ctx = new IOContext(
                     new MergeInfo(-1, -1, false, -1));
-            SegmentReader r1 = new SegmentReader(si1, context);
-            SegmentReader r2 = new SegmentReader(si2, context);
-            //SegmentReader r3 = new SegmentReader(si3, context);
-            //SegmentReader r4 = new SegmentReader(si4, context);
+            for (int segid: cfg.mergeSegs) {
+                SegmentCommitInfo si  = sis.info(segid);
+                segmentsToMerge.add(new SegmentReader(si, ctx));
+            }
 
             final Codec codec = Codec.getDefault();
-            final SegmentInfo si = new SegmentInfo(
+            final SegmentInfo newSegment = new SegmentInfo(
                     dir,
                     Version.LATEST,
                     "_pei5",
@@ -173,23 +148,24 @@ public class SegmentMergeTool {
 
             SegmentMerger merger = new SegmentMerger(
                     //Arrays.asList(r1, r2, r3, r4),
-                    Arrays.asList(r1, r2),
-                    si,
+                    segmentsToMerge,
+                    newSegment,
                     InfoStream.getDefault(),
                     trackingDir,
                     new FieldInfos.FieldNumbers(),
-                    context
+                    ctx
 
             );
             MergeState ms = merger.merge();
             logger.info("merge files:{}", trackingDir.getCreatedFiles());
-            SegmentCommitInfo infoPerCommit = new SegmentCommitInfo(si, 0, -1L, -1L, -1L);
-            si.setFiles(new HashSet<>(trackingDir.getCreatedFiles()));
+            SegmentCommitInfo infoPerCommit = new SegmentCommitInfo(newSegment, 0, -1L, -1L, -1L);
+            newSegment.setFiles(new HashSet<>(trackingDir.getCreatedFiles()));
             trackingDir.clearCreatedFiles();
 
-            codec.segmentInfoFormat().write(trackingDir, si, context);
+            // created segment info
+            codec.segmentInfoFormat().write(trackingDir, newSegment, ctx);
             logger.info("seg info files:{}", trackingDir.getCreatedFiles());
-            si.addFiles(trackingDir.getCreatedFiles());
+            newSegment.addFiles(trackingDir.getCreatedFiles());
 
             sis.add(infoPerCommit);
 

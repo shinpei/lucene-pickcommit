@@ -1,0 +1,75 @@
+package com.github.shinpei.segmerge;
+
+import com.google.common.base.Splitter;
+import org.apache.lucene.index.SegmentMergeTool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+public class Main {
+    private final static Logger logger = LoggerFactory.getLogger(SegmentMergeTool.class.getName());
+
+    static final Splitter COMMA_SPLITTER = Splitter.on(",");
+
+    public static void main (String[] args) throws IOException {
+        List<String> argL = Arrays.asList(args);
+        if (argL.size() % 2 != 1) {
+            logger.error("Each argument needs one value at least");
+            return;
+        }
+        String segmentPath = "./";
+
+        final SegmentMergeTool.Config cfg = new SegmentMergeTool.Config();
+
+        boolean parseOne;
+        for (int i = 0; i < argL.size(); i+= parseOne ? 1: 2) {
+            parseOne = false;
+            switch (argL.get(i)) {
+                case "--delete":
+                    for (String s : COMMA_SPLITTER.split((argL.get(i+1)))) {
+                        if (cfg.deleteSegs == null) {
+                            cfg.deleteSegs = new ArrayList<>();
+                        }
+                        cfg.deleteSegs.add(Integer.parseInt(s));
+                    }
+                    logger.info("Delete enabled for : {}", Arrays.toString(cfg.deleteSegs.toArray()));
+                case "--query":
+                    cfg.searchTerm = argL.get(i+1);
+                    break;
+                case "--merge":
+                    for (String s : COMMA_SPLITTER.split((argL.get(i+1)))) {
+                        if (cfg.mergeSegs == null) {
+                            cfg.mergeSegs = new ArrayList<>();
+                        }
+                        cfg.mergeSegs.add(Integer.parseInt(s));
+                    }
+                    logger.info("Merge enabled for : {}", Arrays.toString(cfg.mergeSegs.toArray()));
+
+                    break;
+                case "--commit-info":
+                    cfg.showSegmentCommitInfo = true;
+                    parseOne = true;
+                    break;
+
+                case "--segment-info":
+                    cfg.showSegmentInfo = true;
+                    parseOne = true;
+                    break;
+
+                default:
+                    // plus one is always a path
+                    segmentPath =  argL.get(i);
+                    parseOne = true;
+            }
+        }
+        cfg.segmentPath = segmentPath;
+        logger.info("Set path to = {}", cfg.segmentPath);
+
+        SegmentMergeTool tool = new SegmentMergeTool(cfg);
+        tool.exec(cfg);
+    }
+}

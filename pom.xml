@@ -53,7 +53,7 @@
                         <configuration>
                             <archive>
                                 <manifest>
-                                    <mainClass>org.apache.lucene.index.SegmentMergeTool</mainClass>
+                                    <mainClass>com.github.shinpei.segmerge.Main</mainClass>
                                 </manifest>
                             </archive>
                             <descriptorRefs>
