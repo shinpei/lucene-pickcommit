@@ -1,7 +1,7 @@
-package com.github.shinpei.segmerge;
+package com.github.shinpei.commitpick;
 
 import com.google.common.base.Splitter;
-import org.apache.lucene.index.SegmentMergeTool;
+import org.apache.lucene.index.CommitPickTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,7 +14,7 @@ import java.util.List;
  * Parse arguments, propagate config to Segmerge tool
  */
 public class Main {
-    private final static Logger logger = LoggerFactory.getLogger(SegmentMergeTool.class.getName());
+    private final static Logger logger = LoggerFactory.getLogger(CommitPickTool.class.getName());
 
     static final Splitter COMMA_SPLITTER = Splitter.on(",");
 
@@ -23,7 +23,7 @@ public class Main {
 
         String segmentPath = "./";
 
-        final SegmentMergeTool.Config cfg = new SegmentMergeTool.Config();
+        final CommitPickTool.Config cfg = new CommitPickTool.Config();
 
         boolean parseOnce; // otherwise, its 2-2
         for (int i = 0; i < argL.size(); i+= parseOnce ? 1: 2) {
@@ -69,7 +69,7 @@ public class Main {
         cfg.segmentPath = segmentPath;
         logger.info("Set path to = {}", cfg.segmentPath);
 
-        SegmentMergeTool tool = new SegmentMergeTool(cfg);
+        CommitPickTool tool = new CommitPickTool(cfg);
         tool.exec(cfg);
     }
 }

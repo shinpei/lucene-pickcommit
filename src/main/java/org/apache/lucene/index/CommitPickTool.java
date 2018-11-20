@@ -17,9 +17,9 @@ import java.util.*;
  * Since merger.merge is not public, we need to build
  * this tool under this namespace
  */
-public class SegmentMergeTool {
+public class CommitPickTool {
 
-    private final static Logger logger = LoggerFactory.getLogger(SegmentMergeTool.class.getName());
+    private final static Logger logger = LoggerFactory.getLogger(CommitPickTool.class.getName());
 
     public static class Config {
         public String segmentPath;
@@ -38,7 +38,7 @@ public class SegmentMergeTool {
     private final PrintStream ps;
 
 
-    public SegmentMergeTool (Config cfg) throws IOException {
+    public CommitPickTool(Config cfg) throws IOException {
         // prepare required fields
         dir = FSDirectory.open(Paths.get(cfg.segmentPath));
         dreader = DirectoryReader.open(dir);
@@ -108,10 +108,11 @@ public class SegmentMergeTool {
         }
 
         if (cfg.deleteSegs != null) {
-            logger.info("Invoking deletes, specified {}", Arrays.toString(cfg.deleteSegs.toArray()));
+
+            ps.format("Invoking deletes, files= %s\n", Arrays.toString(cfg.deleteSegs.toArray()));
             for (int segidx : cfg.deleteSegs) {
                 SegmentCommitInfo sci = sis.info(segidx);
-                logger.info("Removing: {}", sci.info.files());
+                ps.format("Removing: %s\n", sci.info.files());
                 sis.remove(segidx);
             }
             // Write out metadata.
@@ -121,7 +122,8 @@ public class SegmentMergeTool {
 
 
         if (cfg.mergeSegs != null) {
-            logger.info("Going for merge");
+            long start = System.nanoTime();
+            logger.info("Merging...");
             List<CodecReader>  segmentsToMerge = new ArrayList<>(); // SegmentReader <: CodecReader
             IOContext ctx = new IOContext(
                     new MergeInfo(-1, -1, false, -1));
@@ -134,7 +136,7 @@ public class SegmentMergeTool {
             final SegmentInfo newSegment = new SegmentInfo(
                     dir,
                     Version.LATEST,
-                    "_pei5",
+                    "_pei8",
                     -1,
                     false,
                     codec,
@@ -170,7 +172,8 @@ public class SegmentMergeTool {
             // Write out metadata.
             sis.prepareCommit(dir);
             sis.finishCommit(dir);
-
+            long end = System.nanoTime();
+            logger.info("Elapsed merging: {}[s]", (end - start)/(1000.*1000.*1000.));
         }
 
         if(cfg.searchTerm != null) {
