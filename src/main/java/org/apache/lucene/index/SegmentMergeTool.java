@@ -9,7 +9,7 @@ import org.apache.lucene.util.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Paths;
 import java.util.*;
 
@@ -35,14 +35,18 @@ public class SegmentMergeTool {
     private final DirectoryReader dreader;
     private final SegmentInfos sis;
 
+    private final PrintStream ps;
+
 
     public SegmentMergeTool (Config cfg) throws IOException {
-        // prepare required fileds
+        // prepare required fields
         dir = FSDirectory.open(Paths.get(cfg.segmentPath));
         dreader = DirectoryReader.open(dir);
         String files[]  = dir.listAll();
         String lastSegmentFile = SegmentInfos.getLastCommitSegmentsFileName(files);
         sis = SegmentInfos.readCommit(dir, lastSegmentFile);
+
+        ps = new PrintStream(new FileOutputStream(FileDescriptor.out));
     }
 
 
@@ -50,51 +54,46 @@ public class SegmentMergeTool {
         // segment info
 
         int numSegments = sis.asList().size();
-        logger.info("num of segments = {}", numSegments);
+        ps.format("num of segments = %d\n", numSegments);
         for (int i = 0; i < numSegments; i++) {
             final SegmentCommitInfo info = sis.info(i);
-            logger.info("maxDoc={}", info.info.maxDoc());
+            ps.format("[%d, %s] ", i, info.info.name);
+            ps.format("maxDoc=%d, ", info.info.maxDoc());
             SegmentReader reader = null;
             Sort indexSort = info.info.getIndexSort();
             if (indexSort !=null) {
-                logger.info("indexSort {}", indexSort);
+                ps.format("indexSort=%s, ", indexSort);
             }
 
-            logger.info("{} Size (MB): {}", i, info.sizeInBytes()/(1024. * 1024.));
-            try {
-                //final Codec codec = info.info.getCodec();
-                //logger.info("codec={}", codec);
+            ps.format("size=%f[mb], ", info.sizeInBytes()/(1024. * 1024.));
 
-                logger.info("name={}", info.info.name);
-
-                /*
-                Map<String, String> diag = info.info.getDiagnostics();
-                for (Map.Entry<String, String> e: diag.entrySet()) {
-                    logger.info("{} -> {}", e.getKey(), e.getValue());
-                }
-                */
-
-                if (!info.hasDeletions()) {
-                    logger.info("No deletion");
-                } else {
-                    logger.info("Deletion: {}", info.getDelCount());
-                }
-            } catch (Throwable t) {
-
+            /*
+            Map<String, String> diag = info.info.getDiagnostics();
+            for (Map.Entry<String, String> e: diag.entrySet()) {
+                logger.info("{} -> {}", e.getKey(), e.getValue());
             }
+            */
+
+            if (!info.hasDeletions()) {
+                ps.format("delete=0");
+            } else {
+                ps.format("delete=%d", info.getDelCount());
+            }
+            ps.format("\n");
+
         }
     }
 
     private void showSegmentInfo() throws IOException {
 
         IndexCommit ic = dreader.getIndexCommit();
-        logger.info("segment count = {}", ic.getSegmentCount());
-        logger.info("files= {}", ic.getFileNames());
-        logger.info("generation = {}", ic.getGeneration());
-        logger.info("segment file name = {}", ic.getSegmentsFileName());
-        logger.info("isDeleted?? : {}", ic.isDeleted());
+        ps.format("segment count = %d\n", ic.getSegmentCount());
+        ps.format("files= %s\n", ic.getFileNames());
+        ps.format("generation = %d\n", ic.getGeneration());
+        ps.format("segment file name = %s\n", ic.getSegmentsFileName());
+        ps.format("isDeleted?? : %s\n", ic.isDeleted());
         for (Map.Entry<String, String> entry: ic.getUserData().entrySet()) {
-            logger.info("{} {}", entry.getKey(), entry.getValue());
+            ps.format("%s: %s\n", entry.getKey(), entry.getValue());
         }
     }
 
@@ -123,7 +122,7 @@ public class SegmentMergeTool {
 
         if (cfg.mergeSegs != null) {
             logger.info("Going for merge");
-            List<CodecReader>  segmentsToMerge = Arrays.asList(); // SegmentReader <: CodecReader
+            List<CodecReader>  segmentsToMerge = new ArrayList<>(); // SegmentReader <: CodecReader
             IOContext ctx = new IOContext(
                     new MergeInfo(-1, -1, false, -1));
             for (int segid: cfg.mergeSegs) {
@@ -168,6 +167,9 @@ public class SegmentMergeTool {
             newSegment.addFiles(trackingDir.getCreatedFiles());
 
             sis.add(infoPerCommit);
+            // Write out metadata.
+            sis.prepareCommit(dir);
+            sis.finishCommit(dir);
 
         }
 
@@ -180,8 +182,7 @@ public class SegmentMergeTool {
                     .add(new TermQuery(new Term("name", cfg.searchTerm)), BooleanClause.Occur.MUST)
                     .build();
             TopDocs topDocs = searcher.search(query, 1);
-            logger.info("Total hits: {}", topDocs.totalHits);
-            logger.info("scoreDocs:{}", topDocs.scoreDocs.length);
+            ps.format("Total hits: %d, scoreDocs:%d\n", topDocs.totalHits, topDocs.scoreDocs.length);
         }
 
     }

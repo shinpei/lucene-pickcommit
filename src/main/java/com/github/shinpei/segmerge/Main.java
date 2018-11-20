@@ -10,6 +10,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Parse arguments, propagate config to Segmerge tool
+ */
 public class Main {
     private final static Logger logger = LoggerFactory.getLogger(SegmentMergeTool.class.getName());
 
@@ -17,17 +20,14 @@ public class Main {
 
     public static void main (String[] args) throws IOException {
         List<String> argL = Arrays.asList(args);
-        if (argL.size() % 2 != 1) {
-            logger.error("Each argument needs one value at least");
-            return;
-        }
+
         String segmentPath = "./";
 
         final SegmentMergeTool.Config cfg = new SegmentMergeTool.Config();
 
-        boolean parseOne;
-        for (int i = 0; i < argL.size(); i+= parseOne ? 1: 2) {
-            parseOne = false;
+        boolean parseOnce; // otherwise, its 2-2
+        for (int i = 0; i < argL.size(); i+= parseOnce ? 1: 2) {
+            parseOnce = false;
             switch (argL.get(i)) {
                 case "--delete":
                     for (String s : COMMA_SPLITTER.split((argL.get(i+1)))) {
@@ -52,18 +52,18 @@ public class Main {
                     break;
                 case "--commit-info":
                     cfg.showSegmentCommitInfo = true;
-                    parseOne = true;
+                    parseOnce = true;
                     break;
 
                 case "--segment-info":
                     cfg.showSegmentInfo = true;
-                    parseOne = true;
+                    parseOnce = true;
                     break;
 
                 default:
                     // plus one is always a path
                     segmentPath =  argL.get(i);
-                    parseOne = true;
+                    parseOnce = true;
             }
         }
         cfg.segmentPath = segmentPath;
