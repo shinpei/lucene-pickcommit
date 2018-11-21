@@ -69,7 +69,28 @@ public class Main {
         cfg.segmentPath = segmentPath;
         logger.info("Set path to = {}", cfg.segmentPath);
 
-        CommitPickTool tool = new CommitPickTool(cfg);
-        tool.exec(cfg);
+        CommitPickTool tool = new CommitPickTool(cfg.segmentPath);
+
+        if (cfg.showSegmentInfo) {
+            tool.showSegmentInfo();
+        }
+
+        if (cfg.showSegmentCommitInfo) {
+            tool.showSegmentCommitInfo();
+        }
+
+        if (cfg.deleteSegs != null) {
+            tool.deleteCommit(cfg.deleteSegs);
+        }
+
+        if (cfg.mergeSegs != null) {
+            tool.mergeCommit(cfg.mergeSegs);
+        }
+
+        if (cfg.searchTerm != null){
+            tool.searchTerm(cfg.searchTerm);
+        }
+
+
     }
 }
