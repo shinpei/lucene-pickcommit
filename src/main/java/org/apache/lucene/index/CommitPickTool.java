@@ -49,7 +49,7 @@ public class CommitPickTool {
         String lastSegmentFile = SegmentInfos.getLastCommitSegmentsFileName(files);
         sis = SegmentInfos.readCommit(dir, lastSegmentFile);
         PrintStream ps = givenPs == null ? System.out : givenPs;
-        pw = new PrintWriter(ps);
+        pw = new PrintWriter(ps, true);
     }
 
 
