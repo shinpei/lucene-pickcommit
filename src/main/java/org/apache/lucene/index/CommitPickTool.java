@@ -1,5 +1,6 @@
 package org.apache.lucene.index;
 
+import com.github.shinpei.commitpick.LoggerPrintStream;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.*;
@@ -30,6 +31,8 @@ public class CommitPickTool {
         public boolean showSegmentInfo;
     }
 
+
+
     // TODO : We should skip last argument. its a path
     private final Directory dir;
     private final DirectoryReader dreader;
@@ -38,36 +41,45 @@ public class CommitPickTool {
     private final PrintWriter pw;
 
     public CommitPickTool(String segmentPath) throws IOException {
-        this(segmentPath, System.out);
+
+        this(FSDirectory.open(Paths.get(segmentPath)), new LoggerPrintStream(logger));
     }
 
-    public CommitPickTool(String segmentPath, PrintStream givenPs) throws IOException {
+    public CommitPickTool(Directory dir) throws IOException {
+        this(dir, new LoggerPrintStream(logger));
+    }
+
+
+    public CommitPickTool(Directory dir, PrintStream givenPs) throws IOException {
         // prepare required fields
-        dir = FSDirectory.open(Paths.get(segmentPath));
+        this.dir = dir;
+
         dreader = DirectoryReader.open(dir);
+
+        PrintStream ps = givenPs == null ? System.out: givenPs;
+        pw = new PrintWriter(ps, true);
+
         String files[]  = dir.listAll();
         String lastSegmentFile = SegmentInfos.getLastCommitSegmentsFileName(files);
         sis = SegmentInfos.readCommit(dir, lastSegmentFile);
-        PrintStream ps = givenPs == null ? System.out : givenPs;
-        pw = new PrintWriter(ps, true);
     }
 
 
     public void showSegmentCommitInfo() throws IOException {
         // segment info
-
         int numSegments = sis.asList().size();
-        pw.format("num of segments = %d\n", numSegments);
+        StringBuilder sb = new StringBuilder();
+        logger.info("num of segments = {}", numSegments);
         for (int i = 0; i < numSegments; i++) {
             final SegmentCommitInfo info = sis.info(i);
-            pw.format("[%d, %s] ", i, info.info.name);
-            pw.format("maxDoc=%d, ", info.info.maxDoc());
+            sb.append(String.format("[%d, %s] ", i, info.info.name))
+                    .append(String.format("maxDoc=%d, ", info.info.maxDoc()));
             Sort indexSort = info.info.getIndexSort();
             if (indexSort !=null) {
-                pw.format("indexSort=%s, ", indexSort);
+                sb.append(String.format("indexSort=%s, ", indexSort));
             }
 
-            pw.format("size=%f[mb], ", info.sizeInBytes()/(1024. * 1024.));
+            sb.append(String.format("size=%f[mb], ", info.sizeInBytes()/(1024. * 1024.)));
 
             /*
             Map<String, String> diag = info.info.getDiagnostics();
@@ -77,25 +89,30 @@ public class CommitPickTool {
             */
 
             if (!info.hasDeletions()) {
-                pw.format("delete=0");
+                sb.append(String.format("delete=0"));
             } else {
-                pw.format("delete=%d", info.getDelCount());
+                sb.append(String.format("delete=%d", info.getDelCount()));
             }
-            pw.println();
-
+            logger.info("{}", sb.toString());
+            sb.setLength(0);
         }
+
+    }
+
+    public void testPS() {
+        pw.format("PS IS WORKING!!!!!\n");
+        pw.println();
     }
 
     public void showSegmentInfo() throws IOException {
-
         IndexCommit ic = dreader.getIndexCommit();
-        pw.printf("segment count = %d\n", ic.getSegmentCount());
-        pw.printf("files= %s\n", ic.getFileNames());
-        pw.printf("generation = %d\n", ic.getGeneration());
-        pw.printf("segment file name = %s\n", ic.getSegmentsFileName());
-        pw.printf("isDeleted?? : %s\n", ic.isDeleted());
+        pw.format("segment count = %d\n", ic.getSegmentCount());
+        pw.format("files= %s\n", ic.getFileNames());
+        pw.format("generation = %d\n", ic.getGeneration());
+        pw.format("segment file name = %s\n", ic.getSegmentsFileName());
+        pw.format("isDeleted?? : %s\n", ic.isDeleted());
         for (Map.Entry<String, String> entry: ic.getUserData().entrySet()) {
-            pw.printf("%s: %s\n", entry.getKey(), entry.getValue());
+            pw.format("%s: %s\n", entry.getKey(), entry.getValue());
         }
     }
 

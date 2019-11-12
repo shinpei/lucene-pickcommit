@@ -5,8 +5,7 @@ import org.apache.lucene.index.CommitPickTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -69,7 +68,6 @@ public class Main {
         }
         cfg.segmentPath = segmentPath;
         logger.info("Set path to = {}", cfg.segmentPath);
-
         CommitPickTool tool = new CommitPickTool(cfg.segmentPath);
 
         if (cfg.showSegmentInfo) {
